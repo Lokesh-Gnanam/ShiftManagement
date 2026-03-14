@@ -14,11 +14,25 @@ const Login = () => {
 
   useEffect(() => {
     if (user) {
-      if (user.role === 'admin') navigate('/admin');
-      if (user.role === 'senior') navigate('/senior');
-      if (user.role === 'junior') navigate('/junior');
+      const rolePath = `/${user.role}`;
+      console.log(`User logged in as ${user.role}, redirecting...`, rolePath);
+      navigate(rolePath);
+      
+      // Final fallback: If react-router navigate fails, use direct browser location change
+      setTimeout(() => {
+        if (!window.location.pathname.startsWith(rolePath)) {
+          console.warn('Navigation failed, forcing hard redirect to:', rolePath);
+          window.location.href = rolePath;
+        }
+      }, 600);
     }
   }, [user, navigate]);
+
+  const handleQuickLogin = (u, p) => {
+    setUsername(u);
+    setPassword(p);
+    login(u, p);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -30,6 +44,9 @@ const Login = () => {
       <div className="login-header">
         <h1>ShiftSync <span>Agent</span></h1>
         <p>The "Tribal Knowledge" Transfer Platform for MSMEs</p>
+        <div style={{color: '#22c55e', fontSize: '0.8rem', marginTop: '10px', fontWeight: 'bold'}}>
+          ✓ Master Login System Ready (All Roles)
+        </div>
       </div>
 
       <div className="login-form-wrapper">
@@ -69,12 +86,19 @@ const Login = () => {
           </form>
 
           <div className="demo-credentials">
-            <h4>Demo Credentials (Password is 'password123')</h4>
-            <ul>
-              <li><strong>Admin:</strong> admin</li>
-              <li><strong>Senior Tech:</strong> senior</li>
-              <li><strong>Junior Tech:</strong> junior</li>
-            </ul>
+            <h4>Quick Access Portals</h4>
+            <div className="demo-chips">
+              <div className="demo-chip" style={{background: '#9333ea', color: 'white', borderColor: '#a855f7'}} onClick={() => handleQuickLogin('admin', 'password123')}>
+                <strong>Admin</strong>
+              </div>
+              <div className="demo-chip" style={{background: '#ea580c', color: 'white', borderColor: '#f97316'}} onClick={() => handleQuickLogin('senior', 'password123')}>
+                <strong>Senior</strong>
+              </div>
+              <div className="demo-chip" style={{background: '#2563eb', color: 'white', borderColor: '#3b82f6'}} onClick={() => handleQuickLogin('junior', 'password123')}>
+                <strong>Junior</strong>
+              </div>
+            </div>
+            <p className="demo-hint">Click a role above to launch that dashboard</p>
           </div>
         </Card>
       </div>

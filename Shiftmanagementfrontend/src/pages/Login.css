@@ -78,17 +78,37 @@
   margin-bottom: 0.75rem;
 }
 
-.demo-credentials ul {
-  list-style: none;
-  font-size: 0.85rem;
+.demo-chips {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  color: var(--text-muted);
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
-.demo-credentials ul li strong {
-  color: var(--text-primary);
-  display: inline-block;
-  width: 90px;
+.demo-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  flex: 1;
+  text-align: center;
+}
+
+.demo-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.demo-chip.junior-chip {
+  border-color: var(--primary-color);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.demo-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
 }

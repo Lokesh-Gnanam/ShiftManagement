@@ -15,22 +15,41 @@ export const AuthProvider = ({ children }) => {
     { username: 'junior', password: 'password123', role: 'junior', name: 'Junior Tech Arjun' }
   ];
 
-  const login = (username, password) => {
+  const login = async (username, password) => {
     setError('');
-    const foundUser = mockUsers.find(
-      (u) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
-    );
+    const cleanUsername = username?.trim().toLowerCase() || '';
+    const cleanPassword = password?.trim() || '';
 
-    if (foundUser) {
-      setUser({
-        name: foundUser.name,
-        role: foundUser.role,
-        username: foundUser.username
+    try {
+      const response = await fetch('http://localhost:8000/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: cleanUsername,
+          password: cleanPassword,
+        }),
       });
-      return true; // success
-    } else {
-      setError('Invalid username or password');
-      return false; // failure
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser({
+          name: userData.name,
+          role: userData.role,
+          username: userData.username
+        });
+        console.log(`${userData.role} login success`);
+        return true;
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Invalid username or password');
+        return false;
+      }
+    } catch (err) {
+      console.error('Backend connection error:', err);
+      setError('Cannot connect to backend server');
+      return false;
     }
   };
 
