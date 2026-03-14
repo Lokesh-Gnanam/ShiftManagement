@@ -8,11 +8,31 @@ const SeniorDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
-  const [logs, setLogs] = useState([
-    { id: 1, time: 'Today, 10:30 AM', content: 'Calibrated the pressure sensor on Boiler #2.', status: 'Indexed' },
-    { id: 2, time: 'Yesterday, 4:15 PM', content: 'Replaced the cooling fluid pump for Assembly Line B.', status: 'Indexed' },
-    { id: 3, time: 'Yesterday, 9:00 AM', content: 'Addressed misalignment in the robotic arm joint.', status: 'Indexed' }
-  ]);
+  const [logs, setLogs] = useState([]);
+  
+  // Persistence: Load logs from localStorage on mount
+  React.useEffect(() => {
+    const savedLogs = localStorage.getItem('shiftsync_logs');
+    if (savedLogs) {
+      setLogs(JSON.parse(savedLogs));
+    } else {
+      // Default initial logs
+      setLogs([
+        { id: 1, time: 'Today, 10:30 AM', content: 'Calibrated the pressure sensor on Boiler #2 after observing a 5% offset in the digital reading.', status: 'Indexed' },
+        { id: 2, time: 'Yesterday, 4:15 PM', content: 'Replaced the worn-out gasket on the primary cooling pump for Assembly Line B to stop a minor coolant leak.', status: 'Indexed' },
+        { id: 3, time: 'Yesterday, 9:00 AM', content: 'Reprogrammed the robotic arm joint J3 limits to avoid collision with the new workspace barrier.', status: 'Indexed' },
+        { id: 4, time: 'Two days ago, 11:20 AM', content: 'Cleaned the optical sensors on the sorting belt as dust was causing intermittent item rejection errors.', status: 'Indexed' }
+      ]);
+    }
+  }, []);
+
+  // Persistence: Save logs to localStorage whenever they change
+  React.useEffect(() => {
+    if (logs.length > 0) {
+      localStorage.setItem('shiftsync_logs', JSON.stringify(logs));
+    }
+  }, [logs]);
+
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const audioChunks = React.useRef([]);
 
