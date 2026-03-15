@@ -7,6 +7,7 @@ const SeniorDashboard = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState('');
+  const [extractedInsight, setExtractedInsight] = useState(null);
   const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
   const [logs, setLogs] = useState([]);
   
@@ -16,12 +17,12 @@ const SeniorDashboard = () => {
     if (savedLogs) {
       setLogs(JSON.parse(savedLogs));
     } else {
-      // Default initial logs
+      // Default initial logs with rich data
       setLogs([
-        { id: 1, time: 'Today, 10:30 AM', content: 'Calibrated the pressure sensor on Boiler #2 after observing a 5% offset in the digital reading.', status: 'Indexed' },
-        { id: 2, time: 'Yesterday, 4:15 PM', content: 'Replaced the worn-out gasket on the primary cooling pump for Assembly Line B to stop a minor coolant leak.', status: 'Indexed' },
-        { id: 3, time: 'Yesterday, 9:00 AM', content: 'Reprogrammed the robotic arm joint J3 limits to avoid collision with the new workspace barrier.', status: 'Indexed' },
-        { id: 4, time: 'Two days ago, 11:20 AM', content: 'Cleaned the optical sensors on the sorting belt as dust was causing intermittent item rejection errors.', status: 'Indexed' }
+        { id: 1, time: 'Today, 10:30 AM', content: 'Calibrated the pressure sensor on Boiler #2 after observing a 5% offset in the digital reading.', status: 'Indexed', tags: ['Boiler #2', 'Calibration', 'Success'] },
+        { id: 2, time: 'Yesterday, 4:15 PM', content: 'Replaced the worn-out gasket on the primary cooling pump for Assembly Line B to stop a minor coolant leak.', status: 'Indexed', tags: ['Line B', 'Maintenance', 'Leak Fixed'] },
+        { id: 3, time: 'Yesterday, 9:00 AM', content: 'Reprogrammed the robotic arm joint J3 limits to avoid collision with the new workspace barrier.', status: 'Indexed', tags: ['Robotic Arm', 'Software', 'Optimization'] },
+        { id: 4, time: 'Two days ago, 11:20 AM', content: 'Cleaned the optical sensors on the sorting belt as dust was causing intermittent item rejection errors.', status: 'Indexed', tags: ['Sorting Belt', 'Sensors', 'Cleaning'] }
       ]);
     }
   }, []);
@@ -50,7 +51,7 @@ const SeniorDashboard = () => {
         const audioBlob = new Blob(audioChunks.current, { type: 'audio/mpeg' });
         const url = URL.createObjectURL(audioBlob);
         setCurrentAudioUrl(url);
-        await transcribeWithWhisper(audioBlob);
+        await transcribeAndExtract(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -58,6 +59,7 @@ const SeniorDashboard = () => {
       setMediaRecorder(recorder);
       setIsRecording(true);
       setTranscription('');
+      setExtractedInsight(null);
       setCurrentAudioUrl(null);
     } catch (err) {
       console.error('Error accessing microphone:', err);
@@ -72,7 +74,7 @@ const SeniorDashboard = () => {
     }
   };
 
-  const transcribeWithWhisper = async (audioBlob) => {
+  const transcribeAndExtract = async (audioBlob) => {
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
     
     if (!apiKey || apiKey === 'your_openai_api_key_here') {
@@ -82,29 +84,63 @@ const SeniorDashboard = () => {
     }
 
     setIsProcessing(true);
+    
+    // STEP 1: Whisper Speech-to-Text
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.mp3');
     formData.append('model', 'whisper-1');
 
     try {
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
+        headers: { 'Authorization': `Bearer ${apiKey}` },
         body: formData,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Transcription failed');
-      }
+      if (!whisperResponse.ok) throw new Error('Whisper transcription failed');
+      const whisperData = await whisperResponse.json();
+      const text = whisperData.text;
+      setTranscription(text);
 
-      const data = await response.json();
-      setTranscription(data.text);
+      // STEP 2: NLP Insight Extraction
+      const chatResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an industrial NLP agent. Extract structured data from this technician's log.
+              Analyze the text and return a JSON object with:
+              - machine: The specific machine or system mentioned (e.g. "Boiler 2")
+              - issue: Briefly summarize the core problem (e.g. "Leaking Valve")
+              - tags: An array of 2-3 short descriptive tags.
+              
+              Example: "Fixed the broken gear on CNC-01" -> {"machine": "CNC-01", "issue": "Broken Gear", "tags": ["CNC-01", "Gear Fix", "Mechanical"]}`
+            },
+            { role: 'user', content: text }
+          ],
+          temperature: 0.2,
+        }),
+      });
+
+      if (!chatResponse.ok) throw new Error('NLP Extraction failed');
+      const chatData = await chatResponse.json();
+      let aiContent = chatData.choices[0].message.content.trim();
+      
+      // Clean markdown if present
+      if (aiContent.includes('```')) {
+        aiContent = aiContent.replace(/```(json)?/g, '').replace(/```/g, '').trim();
+      }
+      
+      setExtractedInsight(JSON.parse(aiContent));
     } catch (err) {
-      console.error('Whisper API Error:', err);
-      alert(`Transcription Error: ${err.message}`);
+      console.error('AI Processing Error:', err);
+      alert(`AI Error: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -118,11 +154,13 @@ const SeniorDashboard = () => {
       time: 'Just now',
       content: transcription,
       audioUrl: currentAudioUrl,
-      status: 'Indexed'
+      status: 'Indexed',
+      tags: extractedInsight ? [extractedInsight.machine, extractedInsight.issue, ...extractedInsight.tags] : ['Manual Log']
     };
 
     setLogs([newLog, ...logs]);
     setTranscription('');
+    setExtractedInsight(null);
     setCurrentAudioUrl(null);
   };
 
@@ -174,8 +212,8 @@ const SeniorDashboard = () => {
                 <p>"{transcription}"</p>
               </div>
               <div className="insight-tags">
-                <span className="tag problem">AI-Detected Issue</span>
-                <span className="tag solution">Fix Captured</span>
+                <span className="tag problem">{extractedInsight?.machine || 'Analyzing Machine...'}</span>
+                <span className="tag solution">{extractedInsight?.issue || 'Extracting Issue...'}</span>
               </div>
               <Button variant="primary" onClick={handleSave} style={{ width: '100%', marginTop: '1rem' }}>
                 Save to Knowledge Graph
@@ -192,6 +230,13 @@ const SeniorDashboard = () => {
                   <div>
                     <div className="log-time">{log.time}</div>
                     <div className="log-content">{log.content}</div>
+                    <div className="log-tags" style={{ marginTop: '0.5rem', display: 'flex', gap: '5px' }}>
+                      {log.tags && log.tags.map((tag, i) => (
+                        <span key={i} style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', color: 'var(--text-secondary)' }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   {log.audioUrl && (
                     <button 
