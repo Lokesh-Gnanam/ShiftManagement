@@ -83,8 +83,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (response.ok) {
-        // After successful registration, log them in automatically
-        return login(userData.username, userData.password);
+        return true;
       } else {
         const errData = await response.json();
         setError(errData.detail || 'Registration failed');

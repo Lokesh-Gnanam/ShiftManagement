@@ -25,11 +25,12 @@ const SignUp = () => {
     if (error) setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = register(formData);
+    const success = await register(formData);
     if (success) {
-      navigate(`/${formData.role}`);
+      alert('Registration successful! Please log in with your new credentials.');
+      navigate('/');
     }
   };
 
