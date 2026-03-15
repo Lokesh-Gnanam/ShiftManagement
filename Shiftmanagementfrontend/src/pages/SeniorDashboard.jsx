@@ -146,22 +146,110 @@ const SeniorDashboard = () => {
     }
   };
 
-  const handleSave = () => {
+  useEffect(() => {
+    const fetchLogs = async () => {
+      const token = localStorage.getItem('shiftsync_token');
+      if (!token) {
+        console.warn('No JWT token found. Cannot fetch logs from backend.');
+        return;
+      }
+      try {
+        const response = await fetch('http://localhost:8000/logs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Map backend format to frontend format
+          const formattedLogs = data.map((l) => ({
+            id: l.id, // Assuming backend provides an ID
+            time: new Date(l.timestamp).toLocaleString(), // Format timestamp for display
+            content: l.content,
+            audioUrl: l.audio_url,
+            status: 'Verified', // Assuming logs from backend are verified
+            tags: l.tags
+          }));
+          setLogs(formattedLogs); // Replace existing logs with fetched ones
+        } else {
+          console.error('Failed to fetch logs from backend:', response.status, response.statusText);
+        }
+      } catch (err) {
+        console.error('Failed to fetch logs:', err);
+      }
+    };
+    fetchLogs();
+  }, []); // Empty dependency array means this runs once on mount
+
+  const handleSave = async () => {
     if (!transcription) return;
 
-    const newLog = {
-      id: Date.now(),
-      time: 'Just now',
+    const token = localStorage.getItem('shiftsync_token');
+    if (!token) {
+      alert('Authentication token missing. Please log in.');
+      return;
+    }
+
+    const newLogPayload = {
       content: transcription,
-      audioUrl: currentAudioUrl,
-      status: 'Indexed',
-      tags: extractedInsight ? [extractedInsight.machine, extractedInsight.issue, ...extractedInsight.tags] : ['Manual Log']
+      timestamp: new Date().toISOString(), // Use ISO string for backend
+      audio_url: currentAudioUrl,
+      tags: [
+        extractedInsight?.machine ? `[${extractedInsight.machine}]` : '',
+        extractedInsight?.issue ? `[${extractedInsight.issue}]` : '',
+        ...(extractedInsight?.tags || [])
+      ].filter(t => t !== '')
     };
 
-    setLogs([newLog, ...logs]);
-    setTranscription('');
-    setExtractedInsight(null);
-    setCurrentAudioUrl(null);
+    try {
+      const response = await fetch('http://localhost:8000/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newLogPayload)
+      });
+
+      if (response.ok) {
+        const savedLog = await response.json(); // Backend might return the saved log with an ID
+        setLogs([{ 
+          id: savedLog.id || Date.now(), // Use backend ID if available, fallback to Date.now()
+          time: new Date(savedLog.timestamp || newLogPayload.timestamp).toLocaleString(),
+          content: savedLog.content,
+          audioUrl: savedLog.audio_url,
+          status: 'Verified',
+          tags: savedLog.tags
+        }, ...logs]);
+        setTranscription('');
+        setCurrentAudioUrl(null);
+        setExtractedInsight(null);
+      } else {
+        console.error('Failed to save log to backend:', response.status, response.statusText);
+        alert('Failed to save log to backend. Please try again.');
+        // Fallback to local if backend is down or error
+        setLogs([{ 
+          ...newLogPayload, 
+          id: Date.now(), 
+          time: new Date().toLocaleString(), // Format for local display
+          status: 'Verified' 
+        }, ...logs]);
+        setTranscription('');
+        setCurrentAudioUrl(null);
+        setExtractedInsight(null);
+      }
+    } catch (err) {
+      console.error('Failed to save log to backend:', err);
+      alert('Network error or backend is unreachable. Saving locally.');
+      // Fallback to local if backend is down
+      setLogs([{ 
+        ...newLogPayload, 
+        id: Date.now(), 
+        time: new Date().toLocaleString(), // Format for local display
+        status: 'Verified' 
+      }, ...logs]);
+      setTranscription('');
+      setCurrentAudioUrl(null);
+      setExtractedInsight(null);
+    }
   };
 
   const playAudio = (url) => {

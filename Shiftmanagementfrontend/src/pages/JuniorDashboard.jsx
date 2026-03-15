@@ -13,58 +13,55 @@ const JuniorDashboard = () => {
     const query = searchQuery.trim();
     if (query.length === 0) return;
 
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey || apiKey === 'your_openai_api_key_here') {
-      alert("System Configuration Error: OpenAI API Key is missing in .env file.");
+    setIsSearching(true);
+    setResults([]); // Clear previous results
+
+    const token = localStorage.getItem('shiftsync_token');
+    if (!token) {
+      alert('Authentication token missing. Please log in.');
+      setIsSearching(false);
       return;
     }
 
-    setIsSearching(true);
-    setMatchingLog(null);
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (!apiKey || apiKey === 'your_openai_api_key_here') {
+      alert("System Configuration Error: OpenAI API Key is missing in .env file.");
+      setIsSearching(false); // Ensure searching state is reset
+      return;
+    }
 
-    // Load logs from localStorage
-    const savedLogs = localStorage.getItem('shiftsync_logs');
-    const logs = savedLogs ? JSON.parse(savedLogs) : [];
+    const openai = new OpenAI({ apiKey: apiKey, dangerouslyAllowBrowser: true }); // Initialize OpenAI client
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a manufacturing knowledge retrieval agent. 
-              Given a JUNIOR technician's query and a list of SENIOR technician's knowledge logs, identify the best matching solution.
-              
-              Return ONLY the JSON object of the match if a strong match is found.
-              If NO match is found, return the word: NONE.
-              
-              Available Logs: ${JSON.stringify(logs)}`
-            },
-            {
-              role: 'user',
-              content: `Junior Query: "${query}"`
-            }
-          ],
-          temperature: 0.3,
-        }),
+      // First, fetch all logs from the backend
+      const logsResponse = await fetch('http://localhost:8000/logs', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!response.ok) throw new Error('AI Search failed');
+      if (!logsResponse.ok) {
+        throw new Error(`Failed to fetch logs: ${logsResponse.statusText}`);
+      }
+      const allLogs = await logsResponse.json();
 
-      const data = await response.json();
-      let aiResponse = data.choices[0].message.content.trim();
+      // Use AI to find the best matching logs from the fetched data
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert industrial knowledge assistant. Search through the following technical logs from senior technicians and return the ones that are semantically relevant to the junior technician's problem: "${searchQuery}".
+
+            Logs: ${JSON.stringify(allLogs)}
+
+            Return a JSON array of indices of the matching logs. If no logs match, return an empty array [].`
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      let aiResponseContent = completion.choices[0].message.content;
 
       // HEALING LOGIC: Strip Markdown code blocks if present (common OpenAI behavior)
-      if (aiResponse.includes('```')) {
-        aiResponse = aiResponse.replace(/```(json)?/g, '').replace(/```/g, '').trim();
-      }
-
       if (aiResponse === 'NONE') {
         alert("Please concern the senior technician");
       } else {

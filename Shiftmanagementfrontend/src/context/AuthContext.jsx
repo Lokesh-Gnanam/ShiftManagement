@@ -1,102 +1,108 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
+const API_BASE_URL = 'http://localhost:8000'; // FastAPI backend
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('shiftsync_current_user');
-    return saved ? JSON.parse(saved) : null;
-  }); 
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [registeredUsers, setRegisteredUsers] = useState(() => {
-    const saved = localStorage.getItem('shiftsync_users');
-    if (saved) return JSON.parse(saved);
-    return [
-      { username: 'admin', password: 'password123', role: 'admin', name: 'Super Admin', specialization: 'All' },
-      { username: 'senior', password: 'password123', role: 'senior', name: 'Senior Tech Ravi', specialization: 'Maintenance' },
-      { username: 'junior', password: 'password123', role: 'junior', name: 'Junior Tech Arjun', specialization: 'Mechanical' }
-    ];
-  });
 
   useEffect(() => {
-    localStorage.setItem('shiftsync_users', JSON.stringify(registeredUsers));
-  }, [registeredUsers]);
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('shiftsync_current_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('shiftsync_current_user');
-    }
-  }, [user]);
-
-  const login = (username, password) => {
-    setError('');
-    const cleanUsername = username?.trim().toLowerCase() || '';
-    const cleanPassword = password?.trim() || '';
-
-    // ABSOLUTE BYPASS for demo roles
-    if (cleanUsername === 'junior' || cleanUsername === 'senior' || cleanUsername === 'admin') {
-      const demoUser = registeredUsers.find(u => u.username === cleanUsername);
-      if (demoUser) {
-        setUser({
-          name: demoUser.name,
-          role: demoUser.role,
-          username: demoUser.username,
-          specialization: demoUser.specialization
-        });
-        return true;
+    const checkUser = async () => {
+      const token = localStorage.getItem('shiftsync_token');
+      if (token) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/users/me`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            setUser(userData);
+          } else {
+            localStorage.removeItem('shiftsync_token');
+          }
+        } catch (err) {
+          console.error('Auth verification failed:', err);
+        }
       }
-    }
+      setLoading(false);
+    };
+    checkUser();
+  }, []);
 
-    const foundUser = registeredUsers.find(
-      (u) => u.username.toLowerCase() === cleanUsername && u.password === cleanPassword
-    );
+  const login = async (username, password) => {
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('password', password);
 
-    if (foundUser) {
-      setUser({
-        name: foundUser.name,
-        role: foundUser.role,
-        username: foundUser.username,
-        specialization: foundUser.specialization
+      const response = await fetch(`${API_BASE_URL}/token`, {
+        method: 'POST',
+        body: formData,
       });
-      return true;
-    } else {
-      setError('Invalid username or password');
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('shiftsync_token', data.access_token);
+        
+        // Fetch user data
+        const userResponse = await fetch(`${API_BASE_URL}/users/me`, {
+          headers: {
+            'Authorization': `Bearer ${data.access_token}`
+          }
+        });
+        const userData = await userResponse.json();
+        setUser(userData);
+        return true;
+      } else {
+        const errData = await response.json();
+        setError(errData.detail || 'Invalid username or password');
+        return false;
+      }
+    } catch (err) {
+      setError('Connection refused. Is the backend running?');
       return false;
     }
   };
 
-  const register = (userData) => {
-    const exists = registeredUsers.some(u => u.username.toLowerCase() === userData.username.toLowerCase());
-    if (exists) {
-      setError('Username already exists');
+  const register = async (userData) => {
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (response.ok) {
+        // After successful registration, log them in automatically
+        return login(userData.username, userData.password);
+      } else {
+        const errData = await response.json();
+        setError(errData.detail || 'Registration failed');
+        return false;
+      }
+    } catch (err) {
+      setError('Connection refused. Is the backend running?');
       return false;
     }
-
-    const newUser = {
-      ...userData,
-      username: userData.username.toLowerCase()
-    };
-
-    setRegisteredUsers(prev => [...prev, newUser]);
-    setUser({
-      name: newUser.name,
-      role: newUser.role,
-      username: newUser.username,
-      specialization: newUser.specialization
-    });
-    return true;
   };
 
   const logout = () => {
+    localStorage.removeItem('shiftsync_token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register, error, setError }}>
+    <AuthContext.Provider value={{ user, login, logout, register, error, setError, loading }}>
       {children}
     </AuthContext.Provider>
   );

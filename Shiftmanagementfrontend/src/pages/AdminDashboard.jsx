@@ -3,6 +3,31 @@ import Card from '../components/Card';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
+  const [stats, setStats] = React.useState({
+    nodes: 0,
+    resolutionRate: '0%',
+    downtimeSaved: '0h',
+    activeLogs: 0
+  });
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      const token = localStorage.getItem('shiftsync_token');
+      try {
+        const response = await fetch('http://localhost:8000/stats', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch admin stats:', err);
+      }
+    };
+    fetchStats();
+  }, []);
+
   return (
     <div className="dashboard-container animate-fade-in">
       <div className="page-header">
@@ -12,19 +37,19 @@ const AdminDashboard = () => {
 
       <div className="stats-grid">
         <Card className="stat-card">
-          <div className="stat-value">1,248</div>
+          <div className="stat-value">{stats.nodes}</div>
           <div className="stat-label">Knowledge Graph Nodes</div>
         </Card>
         <Card className="stat-card">
-          <div className="stat-value">85%</div>
+          <div className="stat-value">{stats.resolutionRate}</div>
           <div className="stat-label">Resolution Rate via Agent</div>
         </Card>
         <Card className="stat-card">
-          <div className="stat-value">12h</div>
+          <div className="stat-value">{stats.downtimeSaved}</div>
           <div className="stat-label">Downtime Saved (This Week)</div>
         </Card>
         <Card className="stat-card">
-          <div className="stat-value">42</div>
+          <div className="stat-value">{stats.activeLogs}</div>
           <div className="stat-label">Active Voice Logs</div>
         </Card>
       </div>

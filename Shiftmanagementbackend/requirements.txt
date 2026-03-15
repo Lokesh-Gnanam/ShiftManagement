@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-jose[cryptography]
+passlib[bcrypt]
+neo4j
+python-multipart
+python-dotenv

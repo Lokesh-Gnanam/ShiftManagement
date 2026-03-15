@@ -6,27 +6,20 @@ import Button from '../components/Button';
 import './Login.css';
 
 const Login = () => {
-  const { user, login, error } = useAuth();
+  const { user, login, error, loading } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    if (user) {
+    if (!loading && user) {
       const rolePath = `/${user.role}`;
-      console.log(`User logged in as ${user.role}, redirecting...`, rolePath);
       navigate(rolePath);
-      
-      // Final fallback: If react-router navigate fails, use direct browser location change
-      setTimeout(() => {
-        if (!window.location.pathname.startsWith(rolePath)) {
-          console.warn('Navigation failed, forcing hard redirect to:', rolePath);
-          window.location.href = rolePath;
-        }
-      }, 600);
     }
-  }, [user, navigate]);
+  }, [user, navigate, loading]);
+
+  if (loading) return <div className="loading-screen">Authenticating...</div>;
 
   const handleQuickLogin = (u, p) => {
     setUsername(u);
