@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import Button from '../components/Button';
+import { MdHearing } from 'react-icons/md';
 import './SeniorDashboard.css';
 
 const SeniorDashboard = () => {
@@ -35,13 +36,36 @@ const SeniorDashboard = () => {
   }, [logs]);
 
   const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recognition, setRecognition] = useState(null);
   const audioChunks = React.useRef([]);
+  const transcriptionRef = React.useRef('');
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunks.current = [];
+
+      // Initialize Web Speech API for real-time FREE transcription
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recog = new SpeechRecognition();
+        recog.continuous = true;
+        recog.interimResults = true;
+        recog.lang = 'en-US';
+
+        recog.onresult = (event) => {
+          const transcript = Array.from(event.results)
+            .map(result => result[0])
+            .map(result => result.transcript)
+            .join('');
+          setTranscription(transcript);
+          transcriptionRef.current = transcript;
+        };
+
+        recog.start();
+        setRecognition(recog);
+      }
 
       recorder.ondataavailable = (event) => {
         audioChunks.current.push(event.data);
@@ -52,14 +76,17 @@ const SeniorDashboard = () => {
         const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setCurrentAudioUrl(url);
-        await transcribeAndExtract(audioBlob);
+        // We still try the AI extraction if possible, but transcription is already handled locally!
+        // We pass the current transcription ref as the local transcript
+        await transcribeAndExtract(audioBlob, transcriptionRef.current);
         stream.getTracks().forEach(track => track.stop());
       };
 
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
-      setTranscription('');
+      setTranscription(''); // Clear for new recording
+      transcriptionRef.current = ''; // Clear ref for new recording
       setExtractedInsight(null);
       setCurrentAudioUrl(null);
     } catch (err) {
@@ -73,9 +100,12 @@ const SeniorDashboard = () => {
       mediaRecorder.stop();
       setIsRecording(false);
     }
+    if (recognition) {
+      recognition.stop();
+    }
   };
 
-  const transcribeAndExtract = async (audioBlob) => {
+  const transcribeAndExtract = async (audioBlob, localTranscript) => {
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
     
     if (!apiKey || apiKey === 'your_openai_api_key_here') {
@@ -86,10 +116,12 @@ const SeniorDashboard = () => {
 
     setIsProcessing(true);
     
-    // STEP 1: Whisper Speech-to-Text
+    // STEP 1: Whisper Speech-to-Text (Try as primary, use localTranscript as fallback)
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.mp3');
     formData.append('model', 'whisper-1');
+
+    let finalText = localTranscript || '';
 
     try {
       const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -98,17 +130,21 @@ const SeniorDashboard = () => {
         body: formData,
       });
 
-      if (!whisperResponse.ok) {
-        const errorData = await whisperResponse.json();
-        console.error('Whisper API Error:', errorData);
-        throw new Error(errorData.error?.message || 'Whisper transcription failed');
+      if (whisperResponse.ok) {
+        const whisperData = await whisperResponse.json();
+        finalText = whisperData.text; // Whisper is usually more accurate than browser API
+        setTranscription(finalText);
+      } else {
+        console.warn('Whisper API failed or quota exceeded. Using local browser transcription.');
+        if (!finalText) {
+          const errorData = await whisperResponse.json();
+          throw new Error(errorData.error?.message || 'Transcription failed');
+        }
       }
       
-      const whisperData = await whisperResponse.json();
-      const text = whisperData.text;
-      setTranscription(text);
-
       // STEP 2: NLP Insight Extraction
+      if (!finalText) throw new Error("No transcription available to analyze.");
+
       const chatResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -128,7 +164,7 @@ const SeniorDashboard = () => {
               
               Example: "Fixed the broken gear on CNC-01" -> {"machine": "CNC-01", "issue": "Broken Gear", "tags": ["CNC-01", "Gear Fix", "Mechanical"]}`
             },
-            { role: 'user', content: text }
+            { role: 'user', content: finalText }
           ],
           temperature: 0.2,
         }),
@@ -146,8 +182,19 @@ const SeniorDashboard = () => {
       setExtractedInsight(JSON.parse(aiContent));
     } catch (err) {
       console.error('AI Processing Error:', err);
-      // Give the user more details in the alert
-      alert(`AI Error: ${err.message}\n\nCheck if your OpenAI API key is valid and has sufficient quota.`);
+      
+      if (err.message.includes('quota') || err.message.includes('429')) {
+        console.warn('OpenAI Quota Exceeded. Activating Smart Mock Fallback for Insights...');
+        // We have the REAL text from local transcription, but need Mock insights!
+        setExtractedInsight({
+          machine: finalText.includes('Boiler') ? 'Boiler System' : "Factory Machine",
+          issue: "Reported Maintenance Need",
+          tags: ["Voice Log", "Manual Entry"]
+        });
+        alert("💡 OpenAI Quota Exceeded: Recorded your voice via browser, but used 'Smart Mock' for the analysis tags.");
+      } else {
+        alert(`AI Error: ${err.message}\n\nCheck if your OpenAI API key is valid.`);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -260,8 +307,25 @@ const SeniorDashboard = () => {
   };
 
   const playAudio = (url) => {
+    if (!url) return;
     const audio = new Audio(url);
-    audio.play();
+    audio.onplay = () => console.log('Playing audio log...');
+    audio.onerror = (e) => {
+      console.error('Playback Error:', e);
+      alert('Error playing audio. The recording might be unavailable or in an unsupported format.');
+    };
+    audio.play().catch(err => {
+      console.error('Play Promise Rejected:', err);
+      // Modern browsers require interaction to play audio, which should be fine here as it's a button click.
+    });
+  };
+
+  const speakText = (text) => {
+    if (!text) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9; // Slightly slower for better clarity for seniors
+    window.speechSynthesis.speak(utterance);
   };
 
   const toggleRecording = () => {
@@ -310,7 +374,17 @@ const SeniorDashboard = () => {
                 <span className="tag problem">{extractedInsight?.machine || 'Analyzing Machine...'}</span>
                 <span className="tag solution">{extractedInsight?.issue || 'Extracting Issue...'}</span>
               </div>
-              <Button variant="primary" onClick={handleSave} style={{ width: '100%', marginTop: '1rem' }}>
+              {currentAudioUrl && (
+                <div style={{ margin: '1rem 0', display: 'flex', gap: '10px' }}>
+                  <Button variant="secondary" onClick={() => playAudio(currentAudioUrl)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <MdHearing size={20} /> Play Voice
+                  </Button>
+                  <Button variant="secondary" onClick={() => speakText(transcription)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <span>📢</span> Read Text
+                  </Button>
+                </div>
+              )}
+              <Button variant="primary" onClick={handleSave} style={{ width: '100%', marginTop: '0.5rem' }}>
                 Save to Knowledge Graph
               </Button>
             </div>
@@ -336,10 +410,10 @@ const SeniorDashboard = () => {
                   {log.audioUrl && (
                     <button 
                       onClick={() => playAudio(log.audioUrl)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0.5rem' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0.5rem', color: 'var(--accent)', display: 'flex', alignItems: 'center' }}
                       title="Play Voice Log"
                     >
-                      🔊
+                      <MdHearing />
                     </button>
                   )}
                 </div>

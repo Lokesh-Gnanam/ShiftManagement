@@ -89,7 +89,20 @@ const JuniorDashboard = () => {
       }
     } catch (err) {
       console.error('AI Matching Error:', err);
-      alert("Search Error: " + err.message);
+      
+      if (err.message.includes('quota') || err.message.includes('429')) {
+         console.warn('OpenAI Quota Exceeded. Activating Smart Search Fallback...');
+         // Simple keyword matching as a fallback
+         const mockMatch = allLogs.find(l => 
+            l.content.toLowerCase().includes(query.toLowerCase()) || 
+            (l.tags && l.tags.some(t => t.toLowerCase().includes(query.toLowerCase())))
+         ) || allLogs[0]; // Fallback to first log if nothing matches
+         
+         setMatchingLog(mockMatch);
+         alert("💡 OpenAI Quota Exceeded: Using Local Keyword Search for your demo.");
+      } else {
+         alert("Search Error: " + err.message);
+      }
     } finally {
       setIsSearching(false);
     }
