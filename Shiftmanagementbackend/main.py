@@ -135,7 +135,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             record = result.single()
             if record:
                 user_node = record["u"]
-                return User(**user_node)
+                return User(**dict(user_node))
     else:
         user_data = next((u for u in MOCK_DB_TECHNICIANS if u["username"] == username), None)
         if user_data:
@@ -180,7 +180,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             result = session.run("MATCH (u:Technician {username: $username}) RETURN u", username=form_data.username)
             record = result.single()
             if record:
-                user_password_hash = record["u"]["password"]
+                user_node = record["u"]
+                user_password_hash = user_node["password"]
     else:
         user_data = next((u for u in MOCK_DB_TECHNICIANS if u["username"] == form_data.username), None)
         if user_data:
@@ -253,9 +254,15 @@ async def get_logs(current_user: User = Depends(get_current_user)):
     if USE_NEO4J:
         with driver.session() as session:
             result = session.run(
-                "MATCH (u:Technician)-[:LOGGED]->(l:Log) RETURN l ORDER BY l.timestamp DESC"
+                "MATCH (u:Technician)-[:LOGGED]->(l:Log) RETURN l, id(l) as logId ORDER BY l.timestamp DESC"
             )
-            return [{"content": r["l"]["content"], "timestamp": r["l"]["timestamp"], "audio_url": r["l"]["audio_url"], "tags": r["l"]["tags"]} for r in result]
+            return [{
+                "id": r["logId"],
+                "content": r["l"]["content"], 
+                "timestamp": r["l"]["timestamp"], 
+                "audio_url": r["l"]["audio_url"], 
+                "tags": r["l"]["tags"]
+            } for r in result]
     else:
         return [l for l in reversed(MOCK_DB_LOGS)]
 

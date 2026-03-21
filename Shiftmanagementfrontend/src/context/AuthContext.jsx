@@ -11,28 +11,8 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const checkUser = async () => {
-      const token = localStorage.getItem('shiftsync_token');
-      if (token) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/users/me`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-          } else {
-            localStorage.removeItem('shiftsync_token');
-          }
-        } catch (err) {
-          console.error('Auth verification failed:', err);
-        }
-      }
-      setLoading(false);
-    };
-    checkUser();
+    // Session restoration disabled to always start from login
+    setLoading(false);
   }, []);
 
   const login = async (username, password) => {
@@ -57,9 +37,15 @@ export const AuthProvider = ({ children }) => {
             'Authorization': `Bearer ${data.access_token}`
           }
         });
-        const userData = await userResponse.json();
-        setUser(userData);
-        return true;
+
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          setUser(userData);
+          return true;
+        } else {
+          setError('Failed to retrieve user profile.');
+          return false;
+        }
       } else {
         const errData = await response.json();
         setError(errData.detail || 'Invalid username or password');

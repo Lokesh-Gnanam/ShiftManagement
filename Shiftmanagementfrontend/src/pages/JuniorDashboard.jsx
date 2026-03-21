@@ -14,7 +14,7 @@ const JuniorDashboard = () => {
     if (query.length === 0) return;
 
     setIsSearching(true);
-    setResults([]); // Clear previous results
+    setMatchingLog(null); // Clear previous results
 
     const token = localStorage.getItem('shiftsync_token');
     if (!token) {
@@ -43,43 +43,55 @@ const JuniorDashboard = () => {
       }
       const allLogs = await logsResponse.json();
 
-      // Use AI to find the best matching logs from the fetched data
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert industrial knowledge assistant. Search through the following technical logs from senior technicians and return the ones that are semantically relevant to the junior technician's problem: "${searchQuery}".
+      // Use AI to find the best matching logs from the fetched data using native fetch
+      const chatResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert industrial knowledge assistant. Search through the technical logs and return the ONE best matching log that is semantically relevant to the junior technician's problem: "${query}".
+              
+              Logs: ${JSON.stringify(allLogs)}
 
-            Logs: ${JSON.stringify(allLogs)}
-
-            Return a JSON array of indices of the matching logs. If no logs match, return an empty array [].`
-          }
-        ],
-        response_format: { type: "json_object" }
+              If a match is found, return ONLY the log object as JSON.
+              If NO relevant logs are found, return exactly the string: NONE`
+            }
+          ],
+          temperature: 0,
+        }),
       });
 
-      let aiResponseContent = completion.choices[0].message.content;
+      if (!chatResponse.ok) throw new Error('AI search failed');
+      const chatData = await chatResponse.json();
+      let aiResponseContent = chatData.choices[0].message.content.trim();
 
-      // HEALING LOGIC: Strip Markdown code blocks if present (common OpenAI behavior)
-      if (aiResponse === 'NONE') {
-        alert("Please concern the senior technician");
+      // HEALING LOGIC: Strip Markdown code blocks if present
+      if (aiResponseContent.includes('```')) {
+        aiResponseContent = aiResponseContent.replace(/```(json)?/g, '').replace(/```/g, '').trim();
+      }
+
+      if (aiResponseContent === 'NONE') {
+        alert("Please concern the senior technician. No direct matches found in Tribal Knowledge.");
       } else {
         try {
-          // Parse the AI's JSON match
-          const match = JSON.parse(aiResponse);
+          const match = JSON.parse(aiResponseContent);
           setMatchingLog(match);
         } catch (e) {
-          console.error('JSON Parse Error:', e, 'Raw Response:', aiResponse);
-          alert("Search Error: The AI returned an invalid format. Please try again.");
+          console.error('JSON Parse Error:', e, 'Raw:', aiResponseContent);
+          alert("Search Error: Could not determine match. Please try a different query.");
         }
       }
     } catch (err) {
       console.error('AI Matching Error:', err);
       alert("Search Error: " + err.message);
     } finally {
-      setIsSearching(true); // Small delay for UX
-      setTimeout(() => setIsSearching(false), 800);
+      setIsSearching(false);
     }
   };
 

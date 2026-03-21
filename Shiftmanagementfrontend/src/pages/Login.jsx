@@ -85,7 +85,7 @@ const Login = () => {
           </div>
 
           <div className="demo-credentials">
-            <h4>Quick Access Portals</h4>
+            {/* <h4>Quick Access Portals</h4>
             <div className="demo-chips">
               <div className="demo-chip" style={{background: '#9333ea', color: 'white', borderColor: '#a855f7'}} onClick={() => handleQuickLogin('admin', 'password123')}>
                 <strong>Admin</strong>
@@ -96,7 +96,7 @@ const Login = () => {
               <div className="demo-chip" style={{background: '#2563eb', color: 'white', borderColor: '#3b82f6'}} onClick={() => handleQuickLogin('junior', 'password123')}>
                 <strong>Junior</strong>
               </div>
-            </div>
+            </div> */}
             <p className="demo-hint">Click a role above to launch that dashboard</p>
           </div>
         </Card>

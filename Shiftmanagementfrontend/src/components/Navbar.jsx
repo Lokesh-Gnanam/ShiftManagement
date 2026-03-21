@@ -19,7 +19,7 @@ const Navbar = () => {
       </div>
       {user && (
         <div className="navbar-actions">
-          <span className="user-badge">{user.role.toUpperCase()}</span>
+          <span className="user-badge">{user.role?.toUpperCase() || 'USER'}</span>
           <span className="user-name">Welcome, {user.name}</span>
           <button className="logout-btn" onClick={handleLogout}>Logout</button>
         </div>

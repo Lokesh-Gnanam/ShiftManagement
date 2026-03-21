@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import './SeniorDashboard.css';
@@ -48,7 +48,8 @@ const SeniorDashboard = () => {
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks.current, { type: 'audio/mpeg' });
+        // Use a more compatible MIME type (webm works in Chrome/Firefox)
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setCurrentAudioUrl(url);
         await transcribeAndExtract(audioBlob);
@@ -97,7 +98,12 @@ const SeniorDashboard = () => {
         body: formData,
       });
 
-      if (!whisperResponse.ok) throw new Error('Whisper transcription failed');
+      if (!whisperResponse.ok) {
+        const errorData = await whisperResponse.json();
+        console.error('Whisper API Error:', errorData);
+        throw new Error(errorData.error?.message || 'Whisper transcription failed');
+      }
+      
       const whisperData = await whisperResponse.json();
       const text = whisperData.text;
       setTranscription(text);
@@ -140,7 +146,8 @@ const SeniorDashboard = () => {
       setExtractedInsight(JSON.parse(aiContent));
     } catch (err) {
       console.error('AI Processing Error:', err);
-      alert(`AI Error: ${err.message}`);
+      // Give the user more details in the alert
+      alert(`AI Error: ${err.message}\n\nCheck if your OpenAI API key is valid and has sufficient quota.`);
     } finally {
       setIsProcessing(false);
     }
