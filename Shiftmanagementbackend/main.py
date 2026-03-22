@@ -21,6 +21,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "ShiftSyncDB")
+USER_DATABASE = os.getenv("USER_DATABASE", "neo4j")
 
 app = FastAPI(title="ShiftSync Backend")
 
@@ -84,19 +86,18 @@ except Exception as e:
 # Automatic Database Initialization
 def init_db():
     if USE_NEO4J:
-        with driver.session() as session:
-            # Create uniqueness constraint for Technician username
+        # Initialize USER_DATABASE (Technicians)
+        with driver.session(database=USER_DATABASE) as session:
             try:
                 session.run("CREATE CONSTRAINT technician_username IF NOT EXISTS FOR (t:Technician) REQUIRE t.username IS UNIQUE")
-            except Exception:
-                pass # Fallback for different Neo4j versions
+            except Exception: pass
             
-            # Create index for log timestamps to speed up sorting
+        # Initialize NEO4J_DATABASE (Logs)
+        with driver.session(database=NEO4J_DATABASE) as session:
             try:
                 session.run("CREATE INDEX log_timestamp IF NOT EXISTS FOR (l:Log) ON (l.timestamp)")
-            except Exception:
-                pass
-            print("🚀 Neo4j Schema Initialized (Constraints & Indexes)")
+            except Exception: pass
+        print(f"🚀 Neo4j Schema Initialized (Users in {USER_DATABASE}, Logs in {NEO4J_DATABASE})")
 
 # Utilities
 def verify_password(plain_password, hashed_password):
@@ -130,7 +131,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     
     if USE_NEO4J:
-        with driver.session() as session:
+        with driver.session(database=USER_DATABASE) as session:
             result = session.run("MATCH (u:Technician {username: $username}) RETURN u", username=username)
             record = result.single()
             if record:
@@ -155,7 +156,7 @@ async def startup():
 @app.post("/register", response_model=User)
 async def register(user: UserCreate):
     if USE_NEO4J:
-        with driver.session() as session:
+        with driver.session(database=USER_DATABASE) as session:
             check = session.run("MATCH (u:Technician {username: $username}) RETURN u", username=user.username)
             if check.single():
                 raise HTTPException(status_code=400, detail="Username already registered")
@@ -176,7 +177,7 @@ async def register(user: UserCreate):
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user_password_hash = None
     if USE_NEO4J:
-        with driver.session() as session:
+        with driver.session(database=USER_DATABASE) as session:
             result = session.run("MATCH (u:Technician {username: $username}) RETURN u", username=form_data.username)
             record = result.single()
             if record:
@@ -196,7 +197,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     
     # Update last login in Neo4j
     if USE_NEO4J:
-        with driver.session() as session:
+        with driver.session(database=USER_DATABASE) as session:
             session.run(
                 "MATCH (u:Technician {username: $username}) SET u.last_login = datetime()",
                 username=form_data.username
@@ -215,13 +216,12 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 @app.get("/stats")
 async def get_stats(current_user: User = Depends(get_current_user)):
     if USE_NEO4J:
-        with driver.session() as session:
-            result = session.run(
-                "OPTIONAL MATCH (l:Log) WITH count(l) as logCount OPTIONAL MATCH (t:Technician) RETURN logCount, count(t) as techCount"
-            )
-            record = result.single()
-            log_count = record["logCount"] if record else 0
-            tech_count = record["techCount"] if record else 0
+        with driver.session(database=NEO4J_DATABASE) as session:
+            log_result = session.run("MATCH (l:Log) RETURN count(l) as logCount")
+            log_count = log_result.single()["logCount"]
+        with driver.session(database=USER_DATABASE) as session:
+            tech_result = session.run("MATCH (t:Technician) RETURN count(t) as techCount")
+            tech_count = tech_result.single()["techCount"]
     else:
         log_count = len(MOCK_DB_LOGS)
         tech_count = len(MOCK_DB_TECHNICIANS)
@@ -236,13 +236,9 @@ async def get_stats(current_user: User = Depends(get_current_user)):
 @app.post("/logs")
 async def create_log(log: LogEntry, current_user: User = Depends(get_current_user)):
     if USE_NEO4J:
-        with driver.session() as session:
+        with driver.session(database=NEO4J_DATABASE) as session:
             session.run(
-                """
-                MATCH (u:Technician {username: $username})
-                CREATE (l:Log {content: $content, timestamp: $timestamp, audio_url: $audio_url, tags: $tags})
-                CREATE (u)-[:LOGGED]->(l)
-                """,
+                "CREATE (l:Log {content: $content, timestamp: $timestamp, audio_url: $audio_url, tags: $tags, author: $username})",
                 username=current_user.username, content=log.content, timestamp=log.timestamp, audio_url=log.audio_url, tags=log.tags
             )
     else:
@@ -252,9 +248,9 @@ async def create_log(log: LogEntry, current_user: User = Depends(get_current_use
 @app.get("/logs")
 async def get_logs(current_user: User = Depends(get_current_user)):
     if USE_NEO4J:
-        with driver.session() as session:
+        with driver.session(database=NEO4J_DATABASE) as session:
             result = session.run(
-                "MATCH (u:Technician)-[:LOGGED]->(l:Log) RETURN l, id(l) as logId ORDER BY l.timestamp DESC"
+                "MATCH (l:Log) RETURN l, id(l) as logId ORDER BY l.timestamp DESC"
             )
             return [{
                 "id": r["logId"],
