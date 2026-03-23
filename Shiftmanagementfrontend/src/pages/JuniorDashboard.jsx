@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import Card from '../components/Card';
 import Button from '../components/Button';
+import { MdMic, MdMicNone } from 'react-icons/md';
 import './JuniorDashboard.css';
 
 const JuniorDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [matchingLog, setMatchingLog] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
@@ -108,6 +110,48 @@ const JuniorDashboard = () => {
     }
   };
 
+  const startVoiceSearch = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice search is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map(result => result[0])
+        .map(result => result.transcript)
+        .join('');
+      setSearchQuery(transcript);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      // Auto-trigger search after a short delay to let state update
+      setTimeout(() => {
+        const currentQuery = document.querySelector('.search-input').value;
+        if (currentQuery.trim().length > 0) {
+          handleSearch();
+        }
+      }, 500);
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech Recognition Error:', event.error);
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
   return (
     <div className="dashboard-container animate-fade-in">
       <div className="page-header">
@@ -117,14 +161,25 @@ const JuniorDashboard = () => {
 
       <div className="search-section">
         <form onSubmit={handleSearch} className="search-form">
-          <input 
-            type="text" 
-            className="premium-input search-input" 
-            placeholder="E.g., CNC vibration at 4000 RPM..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            disabled={isSearching}
-          />
+          <div className="search-input-wrapper">
+            <input 
+              type="text" 
+              className="premium-input search-input" 
+              placeholder="E.g., CNC vibration at 4000 RPM..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={isSearching}
+            />
+            <button 
+              type="button" 
+              className={`voice-search-btn ${isListening ? 'listening' : ''}`}
+              onClick={startVoiceSearch}
+              disabled={isSearching}
+              title="Voice Search"
+            >
+              {isListening ? <MdMic className="pulse-icon" /> : <MdMicNone />}
+            </button>
+          </div>
           <Button type="submit" variant="primary" disabled={isSearching}>
             {isSearching ? '🤖 AI Reasoning...' : 'Search Knowledge Graph'}
           </Button>
