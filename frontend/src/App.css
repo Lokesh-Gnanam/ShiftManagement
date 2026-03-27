@@ -12,18 +12,18 @@
 
 /* CSS Variables */
 :root {
-  --primary-color: #667eea;
-  --primary-dark: #5a67d8;
-  --secondary-color: #764ba2;
-  --secondary-dark: #6b46c1;
-  --success-color: #28a745;
-  --success-dark: #218838;
-  --danger-color: #dc3545;
-  --danger-dark: #c82333;
-  --warning-color: #ffc107;
-  --warning-dark: #e0a800;
-  --info-color: #17a2b8;
-  --light-color: #f8f9fa;
+  --primary-color: #FD8A6B;
+  --primary-dark: #E86A4C;
+  --secondary-color: #FFA95A;
+  --secondary-dark: #E89849;
+  --success-color: #C3CC9B;
+  --success-dark: #A5B07B;
+  --danger-color: #BD114A;
+  --danger-dark: #9F0F3D;
+  --warning-color: #FFA95A;
+  --warning-dark: #E89849;
+  --info-color: #FD8A6B;
+  --light-color: #F2EAE0;
   --dark-color: #343a40;
   --gray-100: #f8f9fa;
   --gray-200: #e9ecef;
@@ -49,7 +49,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: var(--light-color);
   min-height: 100vh;
   color: var(--gray-800);
 }
@@ -87,7 +87,7 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--light-color);
 }
 
 .spinner {

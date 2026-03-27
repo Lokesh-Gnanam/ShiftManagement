@@ -1,25 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* Premium Dark Theme Core Pattern */
-  --bg-main: #0f1115;
-  --surface-color: #1a1d24;
-  --surface-color-hover: #222631;
+  /* Premium Bright Theme Core Pattern */
+  --bg-main: #F2EAE0;
+  --surface-color: #FFFFFF;
+  --surface-color-hover: #FAFAFA;
   
-  --primary-color: #3b82f6; /* Beautiful Blue */
-  --primary-light: rgba(59, 130, 246, 0.15);
-  --primary-dark: #2563eb;
+  --primary-color: #FD8A6B; /* Coral/orange-red */
+  --primary-light: rgba(253, 138, 107, 0.15);
+  --primary-dark: #E86A4C;
   
-  --success-color: #10b981;
-  --warning-color: #f59e0b;
-  --danger-color: #ef4444;
+  --success-color: #C3CC9B; /* Light greenish */
+  --warning-color: #FFA95A; /* Light orange */
+  --danger-color: #BD114A; /* Dark red/magenta */
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-muted: #7A7A7A;
 
-  --border-color: #334155;
-  --border-light: rgba(255, 255, 255, 0.05);
+  --border-color: #E0D8CE;
+  --border-light: rgba(0, 0, 0, 0.05);
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
@@ -44,8 +44,8 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   background-color: var(--bg-main);
   background-image: 
-    radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.05), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.03), transparent 25%);
+    radial-gradient(circle at 15% 50%, rgba(253, 138, 107, 0.05), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(195, 204, 155, 0.08), transparent 25%);
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -56,7 +56,7 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   line-height: 1.2;
-  color: var(--text-primary);
+  color: var(--danger-color); /* #BD114A for dark red/magenta headings */
 }
 
 a {

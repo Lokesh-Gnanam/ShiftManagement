@@ -60,7 +60,7 @@
 }
 
 .record-btn.recording {
-  background: linear-gradient(135deg, var(--danger-color), #c0392b);
+  background: linear-gradient(135deg, var(--danger-color), var(--danger-dark));
 }
 
 .record-hint {
@@ -98,13 +98,13 @@
 }
 
 .tag.problem {
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
+  background: rgba(189, 17, 74, 0.15); /* Danger color rgba */
+  color: var(--danger-color);
 }
 
 .tag.solution {
-  background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
+  background: rgba(195, 204, 155, 0.25); /* Success color rgba */
+  color: var(--success-dark);
 }
 
 .logs-list {

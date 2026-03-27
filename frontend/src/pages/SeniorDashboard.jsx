@@ -39,6 +39,30 @@ const SeniorDashboard = () => {
   const [recognition, setRecognition] = useState(null);
   const audioChunks = React.useRef([]);
   const transcriptionRef = React.useRef('');
+  const fileInputRef = React.useRef(null);
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Reset states
+    setIsRecording(false);
+    setTranscription('');
+    transcriptionRef.current = '';
+    setExtractedInsight(null);
+    setCurrentAudioUrl(null);
+
+    try {
+      const url = URL.createObjectURL(file);
+      setCurrentAudioUrl(url);
+      await transcribeAndExtract(file, ''); 
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Error uploading file.");
+    }
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const startRecording = async () => {
     try {
@@ -107,21 +131,39 @@ const SeniorDashboard = () => {
 
   const transcribeAndExtract = async (audioBlob, localTranscript) => {
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    setIsProcessing(true);
     
+    let finalText = localTranscript || '';
+
+    // Smart Mock Fallback when API key is missing
     if (!apiKey || apiKey === 'your_openai_api_key_here') {
-      alert("System Configuration Error: OpenAI API Key is missing in .env file.");
+      console.warn("OpenAI API Key is missing. Activating Offline Mock Mode.");
+      
+      // If no local transcript (like an uploaded file), we generate a mock one
+      if (!finalText) {
+        const filename = audioBlob.name ? audioBlob.name.toLowerCase() : '';
+        if (filename.includes('pmp')) finalText = "Pump 3 sounds like marbles. Check suction line for blockage.";
+        else if (filename.includes('hvac') || filename.includes('cooling')) finalText = "VFD on Cooling Tower 4 is tripping during high-load shifts.";
+        else if (filename.includes('cnc')) finalText = "CNC-9 spindle is drifting 0.5mm on the Y-axis after 2 hours of runtime.";
+        else if (filename.includes('hyd')) finalText = "He inspected the hydraulic assembly, press 4, found a slight pressure drop and replaced the O-ring.";
+        else finalText = "This is an offline mock transcription of the uploaded audio. Please configure your OpenAI API Key for real processing.";
+      }
+      
+      setTranscription(finalText);
+      setExtractedInsight({
+        machine: finalText.includes('Pump') ? 'Centrifugal Pump P3' : (finalText.includes('Cooling') ? 'Cooling Tower 4' : 'Factory Equipment'),
+        issue: "Offline Mock Analysis",
+        confidence: 0.95,
+        resolution: "Mock API mode active. Add OPENAI_API_KEY to .env for real AI processing."
+      });
       setIsProcessing(false);
       return;
     }
 
-    setIsProcessing(true);
-    
-    // STEP 1: Whisper Speech-to-Text (Try as primary, use localTranscript as fallback)
+    // STEP 1: Whisper Speech-to-Text
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.mp3');
     formData.append('model', 'whisper-1');
-
-    let finalText = localTranscript || '';
 
     try {
       const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -357,46 +399,66 @@ const SeniorDashboard = () => {
               <div className="mic-icon">{isProcessing ? '⏳' : '🎙️'}</div>
             </button>
             <h3>{isProcessing ? 'Transcribing with Whisper AI...' : isRecording ? 'Recording...' : 'Tap to Record Insight'}</h3>
-            <p className="record-hint">
+            <p className="record-hint" style={{marginBottom: '1rem'}}>
               {isProcessing ? 'Processing audio...' : 'One-tap voice capture enabled'}
             </p>
+
+            {!isRecording && !isProcessing && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'bold' }}>— OR —</div>
+                <input 
+                  type="file" 
+                  accept="audio/*" 
+                  ref={fileInputRef} 
+                  style={{ display: 'none' }} 
+                  onChange={handleFileUpload} 
+                />
+                <Button 
+                  variant="outline" 
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  📁 Upload Audio File
+                </Button>
+              </div>
+            )}
           </div>
           
           {transcription && (
             <div className="transcription-area animate-fade-in">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h4>Extracted Insight</h4>
-                <span style={{ fontSize: '0.7rem', color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.2)', fontWeight: 'bold' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--primary-color)', fontWeight: 'bold' }}>
                   ✓ AI VERIFIED
                 </span>
               </div>
-              <div className="transcription-box" style={{ background: 'linear-gradient(to right, rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.02))' }}>
+              <div className="transcription-box" style={{ background: 'linear-gradient(to right, var(--primary-light), transparent)' }}>
                 <p>"{transcription}"</p>
               </div>
               <div className="insight-tags">
-                <span className="tag solution" style={{background: '#6366f1', color: 'white'}}>⚙️ {extractedInsight?.machine || 'Analyzing...'}</span>
+                <span className="tag solution" style={{background: 'var(--primary-color)', color: 'white'}}>⚙️ {extractedInsight?.machine || 'Analyzing...'}</span>
                 <span className="tag problem">⚠️ {extractedInsight?.issue || 'Extracting Issue...'}</span>
               </div>
               
               {extractedInsight?.resolution && (
-                <div style={{ margin: '0.8rem 0', padding: '1rem', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '8px', borderLeft: '3px solid #10b981' }}>
-                  <h4 style={{ color: '#10b981', fontSize: '0.8rem', marginBottom: '0.4rem', fontWeight: 'bold' }}>✅ ACTIONABLE RESOLUTION:</h4>
-                  <p style={{ fontSize: '0.9rem', color: '#e2e8f0', lineHeight: '1.4' }}>{extractedInsight.resolution}</p>
+                <div style={{ margin: '0.8rem 0', padding: '1rem', background: 'rgba(195, 204, 155, 0.2)', borderRadius: '8px', borderLeft: '3px solid var(--success-dark)' }}>
+                  <h4 style={{ color: 'var(--success-dark)', fontSize: '0.8rem', marginBottom: '0.4rem', fontWeight: 'bold' }}>✅ ACTIONABLE RESOLUTION:</h4>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>{extractedInsight.resolution}</p>
                 </div>
               )}
               
               {extractedInsight?.root_cause && (
-                <div style={{ margin: '0.5rem 0', padding: '0.8rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '6px', borderLeft: '3px solid #ef4444' }}>
-                  <small style={{ color: '#ef4444', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>ROOT CAUSE IDENTIFIED</small>
+                <div style={{ margin: '0.5rem 0', padding: '0.8rem', background: 'rgba(189, 17, 74, 0.05)', borderRadius: '6px', borderLeft: '3px solid var(--danger-color)' }}>
+                  <small style={{ color: 'var(--danger-color)', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>ROOT CAUSE IDENTIFIED</small>
                   <p style={{ margin: 0, fontSize: '0.9rem' }}>{extractedInsight.root_cause}</p>
                 </div>
               )}
               {extractedInsight?.confidence && (
                 <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-                    <div style={{ width: `${extractedInsight.confidence * 100}%`, height: '100%', background: '#10b981' }}></div>
+                  <div style={{ flex: 1, height: '4px', background: 'rgba(0,0,0,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: `${extractedInsight.confidence * 100}%`, height: '100%', background: 'var(--success-dark)' }}></div>
                   </div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#10b981' }}>{(extractedInsight.confidence * 100).toFixed(0)}% AI Confidence</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--success-dark)' }}>{(extractedInsight.confidence * 100).toFixed(0)}% AI Confidence</span>
                 </div>
               )}
               {currentAudioUrl && (

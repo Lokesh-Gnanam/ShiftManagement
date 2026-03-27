@@ -110,7 +110,7 @@ const SignUp = () => {
               />
             </div>
             
-            {error && <div className="error-message" style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '10px' }}>{error}</div>}
+            {error && <div className="error-message" style={{ color: 'var(--danger-color)', fontSize: '0.8rem', marginBottom: '10px' }}>{error}</div>}
 
             <Button type="submit" variant="primary" className="login-btn">
               Complete Registration
@@ -118,7 +118,7 @@ const SignUp = () => {
           </form>
 
           <p className="demo-hint" style={{ marginTop: '20px' }}>
-            Already registered? <Link to="/" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 'bold' }}>Login here</Link>
+            Already registered? <Link to="/" style={{ color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 'bold' }}>Login here</Link>
           </p>
         </Card>
       </div>

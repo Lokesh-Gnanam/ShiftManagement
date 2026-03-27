@@ -55,7 +55,7 @@
 }
 
 .bar:hover {
-  background: linear-gradient(to top, var(--success-color), #34d399);
+  background: linear-gradient(to top, var(--success-color), var(--success-dark));
 }
 
 .chart-info {

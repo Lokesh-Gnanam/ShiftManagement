@@ -35,7 +35,7 @@ const Login = () => {
   if (user) return (
     <div className="loading-screen">
       <div className="loading-content">
-        <p style={{color: '#22c55e', fontWeight: 'bold'}}>✓ Login Successful!</p>
+        <p style={{color: 'var(--success-color)', fontWeight: 'bold'}}>✓ Login Successful!</p>
         <p>Redirecting to {user.role?.toUpperCase()} Dashboard...</p>
       </div>
     </div>
@@ -57,7 +57,7 @@ const Login = () => {
       <div className="login-header">
         <h1>ShiftSync <span>Agent</span></h1>
         <p>The "Tribal Knowledge" Transfer Platform for MSMEs</p>
-        <div style={{color: '#22c55e', fontSize: '0.8rem', marginTop: '10px', fontWeight: 'bold'}}>
+        <div style={{color: 'var(--success-color)', fontSize: '0.8rem', marginTop: '10px', fontWeight: 'bold'}}>
           ✓ Master Login System (Mock Enabled)
         </div>
       </div>
@@ -100,7 +100,7 @@ const Login = () => {
 
           <div style={{ marginTop: '20px', textAlign: 'center' }}>
             <p className="demo-hint">
-              New Technician? <Link to="/signup" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 'bold' }}>Register Here</Link>
+              New Technician? <Link to="/signup" style={{ color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 'bold' }}>Register Here</Link>
             </p>
           </div>
 

@@ -45,7 +45,7 @@ class UserCreate(BaseModel):
 
 class LogIngest(BaseModel):
     transcript: str
-    audio_url: str
+    audio_url: Optional[str] = None
 
 class SearchRequest(BaseModel):
     query: str
@@ -93,7 +93,8 @@ MOCK_DB_LOGS = [
         "machine": "Centrifugal Pump P3", "issue": "Cavitation", 
         "root_cause": "Intake strainer 80% blocked by debris.",
         "resolution": "Flush intake strainer and verify NPSH flow.", 
-        "confidence": 0.98, "audio_url": None, "timestamp": "2026-03-26T14:45:00"
+        "confidence": 0.98, "audio_url": "/static/audio/PMP-001_uk.mp3", 
+        "timestamp": "2026-03-26T14:45:00"
     },
     {
         "id": "HVAC-004", "title": "Cooling Tower VFD Trip", 
@@ -101,7 +102,8 @@ MOCK_DB_LOGS = [
         "machine": "Cooling Tower 4", "issue": "VFD Fault", 
         "root_cause": "Heat dissipation failure in the control cabinet cooling fan.",
         "resolution": "Replace cabinet filters and check fan motor continuity.", 
-        "confidence": 0.99, "audio_url": None, "timestamp": "2026-03-26T15:20:00"
+        "confidence": 0.99, "audio_url": "/static/audio/HVAC-004_au.mp3", 
+        "timestamp": "2026-03-26T15:20:00"
     },
     {
         "id": "CNC-009", "title": "Spindle Axis Deviation", 
@@ -109,7 +111,8 @@ MOCK_DB_LOGS = [
         "machine": "CNC-9 Lathe", "issue": "Axis Drift", 
         "root_cause": "Thermal expansion of the lead screw due to lubrication failure.",
         "resolution": "Reset zero-point; purge lubrication lines; check pump pressure.", 
-        "confidence": 1.0, "audio_url": None, "timestamp": "2026-03-26T16:10:00"
+        "confidence": 1.0, "audio_url": "/static/audio/CNC-009_au.mp3", 
+        "timestamp": "2026-03-26T16:10:00"
     },
     {
         "id": "MOCK-HYD-04", "title": "Hydraulic Press 4 Pressure Drop", 
@@ -117,7 +120,8 @@ MOCK_DB_LOGS = [
         "machine": "Hydraulic Assembly / Press 4", "issue": "Pressure Drop", 
         "root_cause": "O-ring seal fatigue",
         "resolution": "Inspected hydraulic assembly; replaced O-ring in Press 4; pressure restored.", 
-        "confidence": 0.99, "audio_url": None, "timestamp": "2026-03-27T10:00:00"
+        "confidence": 0.99, "audio_url": "/static/audio/MOCK-HYD-04_uk.mp3", 
+        "timestamp": "2026-03-27T10:00:00"
     }
 ]
 
@@ -350,6 +354,30 @@ async def upload_audio(file: UploadFile = File(...)):
         with open(path, "wb") as b: b.write(await file.read())
         return {"url": f"/static/audio/{fname}"}
     except Exception as e: raise HTTPException(500, detail=str(e))
+
+
+@app.get("/stats")
+async def get_stats(current_user: User = Depends(get_current_user)):
+    """Admin stats endpoint - provides analytics for the dashboard"""
+    # Only admin can access stats
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Calculate stats from mock data
+    total_logs = len(MOCK_DB_LOGS)
+    logs_with_audio = sum(1 for log in MOCK_DB_LOGS if log.get("audio_url"))
+    
+    # Mock stats for demonstration
+    stats = {
+        "nodes": total_logs * 3,  # Each log creates ~3 nodes in graph
+        "resolutionRate": f"{int((logs_with_audio / total_logs) * 100)}%",
+        "downtimeSaved": f"{total_logs * 2.5}h",  # Mock calculation
+        "activeLogs": total_logs,
+        "logsWithAudio": logs_with_audio,
+        "totalResolutions": total_logs
+    }
+    
+    return stats
 
 if __name__ == "__main__":
     import uvicorn
