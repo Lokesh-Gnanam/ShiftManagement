@@ -2,8 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
-
-// Lazy loading pages will occur soon
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import SeniorDashboard from './pages/SeniorDashboard';
