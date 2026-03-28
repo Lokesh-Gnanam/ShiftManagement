@@ -12,7 +12,8 @@ export default defineConfig({
       '/logs': 'http://127.0.0.1:8000',
       '/stats': 'http://127.0.0.1:8000',
       '/search': 'http://127.0.0.1:8000',
-      '/upload-audio': 'http://127.0.0.1:8000'
+      '/upload-audio': 'http://127.0.0.1:8000',
+      '/static': 'http://127.0.0.1:8000'
     }
   }
 })

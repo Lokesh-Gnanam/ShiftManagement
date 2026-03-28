@@ -132,8 +132,9 @@ def verify_password(p, h): return pwd_context.verify(p, h)
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        u_name: str = payload.get("sub")
+        u_name = payload.get("sub")
         if u_name is None: raise HTTPException(401)
+        u_name = str(u_name).strip()
     except Exception: raise HTTPException(401)
 
     if USE_NEO4J:
@@ -183,19 +184,20 @@ async def register(user: UserCreate):
 @app.post("/token", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     u_pw = None
+    username = form_data.username.strip()
     if USE_NEO4J:
         async with driver.session(database=NEO4J_DATABASE) as session:
-            res = await session.run("MATCH (u:Technician {username: $u}) RETURN u.password as p", u=form_data.username)
+            res = await session.run("MATCH (u:Technician {username: $u}) RETURN u.password as p", u=username)
             rec = await res.single()
             if rec: u_pw = rec["p"]
     else:
-        u = next((u for u in MOCK_DB_USERS if u["username"] == form_data.username), None)
+        u = next((u for u in MOCK_DB_USERS if u["username"] == username), None)
         if u: u_pw = u["password"]
 
     if not u_pw or not verify_password(form_data.password, u_pw):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    token = jwt.encode({"sub": form_data.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
+    token = jwt.encode({"sub": username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/users/me", response_model=User)

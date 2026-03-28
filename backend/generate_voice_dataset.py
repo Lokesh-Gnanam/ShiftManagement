@@ -1,5 +1,5 @@
 import os
-from gtts import gTTS
+import sys
 import subprocess
 from pathlib import Path
 
@@ -81,6 +81,7 @@ VOICE_SCRIPTS = {
 
 def generate_with_gtts():
     """Generate audio files using gTTS"""
+    from gtts import gTTS
     generated_files = []
     
     for log_id, scripts in VOICE_SCRIPTS.items():
@@ -121,6 +122,7 @@ def generate_with_gtts():
 
 def generate_alternate_voices():
     """Generate audio with different accents/voices using gTTS"""
+    from gtts import gTTS
     # gTTS supports different TLDs (top-level domains) for accents
     accents = {
         'us': 'com',      # American English
@@ -208,7 +210,7 @@ if __name__ == "__main__":
         import gtts
     except ImportError:
         print("⚠️  gTTS not found. Installing...")
-        os.system("pip install gtts")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "gtts"])
         import gtts
     
     # Generate main audio files

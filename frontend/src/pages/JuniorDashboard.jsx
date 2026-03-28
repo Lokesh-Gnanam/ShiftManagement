@@ -11,6 +11,63 @@ const JuniorDashboard = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
+  // Audio playback state
+  const [activeAudio, setActiveAudio] = useState({ id: null, status: 'stopped' });
+  const audioRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const handlePlayPause = (id, url, text) => {
+    if (activeAudio.id === id) {
+      if (activeAudio.status === 'playing') {
+        if (audioRef.current) audioRef.current.pause();
+        else window.speechSynthesis.pause();
+        setActiveAudio({ ...activeAudio, status: 'paused' });
+      } else if (activeAudio.status === 'paused') {
+        if (audioRef.current) audioRef.current.play();
+        else window.speechSynthesis.resume();
+        setActiveAudio({ ...activeAudio, status: 'playing' });
+      }
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    window.speechSynthesis.cancel();
+
+    if (url) {
+      const audio = new Audio(url);
+      audio.onended = () => setActiveAudio({ id: null, status: 'stopped' });
+      audio.onerror = () => {
+        console.error('Playback Error');
+        alert('Error playing audio. The recording might be unavailable.');
+        setActiveAudio({ id: null, status: 'stopped' });
+      };
+      const playPromise = audio.play();
+      if (playPromise !== undefined) playPromise.catch(e => console.error("Play error:", e));
+      audioRef.current = audio;
+      setActiveAudio({ id, status: 'playing' });
+    } else if (text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      utterance.onend = () => setActiveAudio({ id: null, status: 'stopped' });
+      window.speechSynthesis.speak(utterance);
+      setActiveAudio({ id, status: 'playing' });
+    } else {
+      alert("No audio recording or text available for this legacy log.");
+    }
+  };
+
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
     const query = searchQuery.trim();
@@ -162,15 +219,11 @@ const JuniorDashboard = () => {
             <div className="voice-note-player">
               <button 
                 className="play-btn" 
-                onClick={() => {
-                  if (matchingLog.audio_url) {
-                    new Audio(matchingLog.audio_url).play();
-                  } else {
-                    alert("No audio recording available for this legacy log.");
-                  }
-                }}
+                onClick={() => handlePlayPause('match', matchingLog.audio_url, matchingLog.transcript || matchingLog.content)}
+                title="Play/Pause Voice Log"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                {matchingLog.audio_url ? '▶️' : '🔇'}
+                {activeAudio.id === 'match' && activeAudio.status === 'playing' ? '⏸️' : activeAudio.id === 'match' && activeAudio.status === 'paused' ? '▶️' : (matchingLog.audio_url || matchingLog.transcript || matchingLog.content ? '▶️' : '🔇')}
               </button>
               <div className="waveform">
                 <span></span><span></span><span></span><span></span><span></span><span></span><span></span>

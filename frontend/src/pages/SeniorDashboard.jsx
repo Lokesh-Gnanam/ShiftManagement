@@ -12,7 +12,19 @@ const SeniorDashboard = () => {
   const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
   const [logs, setLogs] = useState([]);
   
-  // Persistence: Load logs from localStorage on mount
+  // Audio playback state
+  const [activeAudio, setActiveAudio] = useState({ id: null, status: 'stopped' });
+  const audioRef = React.useRef(null);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      window.speechSynthesis.cancel();
+    };
+  }, []);
   React.useEffect(() => {
     const savedLogs = localStorage.getItem('shiftsync_logs');
     if (savedLogs) {
@@ -351,26 +363,55 @@ const SeniorDashboard = () => {
     }
   };
 
-  const playAudio = (url) => {
-    if (!url) return;
-    const audio = new Audio(url);
-    audio.onplay = () => console.log('Playing audio log...');
-    audio.onerror = (e) => {
-      console.error('Playback Error:', e);
-      alert('Error playing audio. The recording might be unavailable or in an unsupported format.');
-    };
-    audio.play().catch(err => {
-      console.error('Play Promise Rejected:', err);
-      // Modern browsers require interaction to play audio, which should be fine here as it's a button click.
-    });
-  };
+  const handlePlayPause = (id, url, text) => {
+    // If clicking the currently active audio
+    if (activeAudio.id === id) {
+      if (activeAudio.status === 'playing') {
+        if (audioRef.current) audioRef.current.pause();
+        else window.speechSynthesis.pause();
+        setActiveAudio({ ...activeAudio, status: 'paused' });
+      } else if (activeAudio.status === 'paused') {
+        if (audioRef.current) audioRef.current.play();
+        else window.speechSynthesis.resume();
+        setActiveAudio({ ...activeAudio, status: 'playing' });
+      }
+      return;
+    }
 
-  const speakText = (text) => {
-    if (!text) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9; // Slightly slower for better clarity for seniors
-    window.speechSynthesis.speak(utterance);
+    // Stop currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    window.speechSynthesis.cancel();
+
+    // Start playing new audio
+    if (url) {
+      const audio = new Audio(url);
+      audio.onended = () => setActiveAudio({ id: null, status: 'stopped' });
+      audio.onerror = () => {
+        console.error('Playback Error');
+        alert('Error playing audio. The recording might be unavailable.');
+        setActiveAudio({ id: null, status: 'stopped' });
+      };
+      
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => console.error("Play error:", e));
+      }
+      
+      audioRef.current = audio;
+      setActiveAudio({ id, status: 'playing' });
+    } else if (text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      utterance.onend = () => setActiveAudio({ id: null, status: 'stopped' });
+      window.speechSynthesis.speak(utterance);
+      setActiveAudio({ id, status: 'playing' });
+    } else {
+      alert("No audio or text found to play.");
+    }
   };
 
   const toggleRecording = () => {
@@ -461,13 +502,20 @@ const SeniorDashboard = () => {
                   <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--success-dark)' }}>{(extractedInsight.confidence * 100).toFixed(0)}% AI Confidence</span>
                 </div>
               )}
-              {currentAudioUrl && (
+              {(currentAudioUrl || transcription) && (
                 <div style={{ margin: '1rem 0', display: 'flex', gap: '10px' }}>
-                  <Button variant="secondary" onClick={() => playAudio(currentAudioUrl)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <MdHearing size={20} /> Play Voice
-                  </Button>
-                  <Button variant="secondary" onClick={() => speakText(transcription)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <span>📢</span> Read Text
+                  <Button 
+                    variant="secondary" 
+                    onClick={() => handlePlayPause('current', currentAudioUrl, transcription)} 
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {activeAudio.id === 'current' && activeAudio.status === 'playing' ? (
+                      <><span>⏸️</span> Pause Audio</>
+                    ) : activeAudio.id === 'current' && activeAudio.status === 'paused' ? (
+                      <><span>▶️</span> Resume Audio</>
+                    ) : (
+                      <><span>▶️</span> Play Audio</>
+                    )}
                   </Button>
                 </div>
               )}
@@ -497,13 +545,13 @@ const SeniorDashboard = () => {
                       ))}
                     </div>
                   </div>
-                  {log.audioUrl && (
+                  {(log.audioUrl || log.content) && (
                     <button 
-                      onClick={() => playAudio(log.audioUrl)}
+                      onClick={() => handlePlayPause(log.id, log.audioUrl, log.content)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0.5rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center' }}
                       title="Play Voice Log"
                     >
-                      <MdHearing />
+                      {activeAudio.id === log.id && activeAudio.status === 'playing' ? '⏸️' : activeAudio.id === log.id && activeAudio.status === 'paused' ? '▶️' : <MdHearing />}
                     </button>
                   )}
                 </div>
